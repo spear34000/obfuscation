@@ -2,6 +2,8 @@
 
 ## Rhino JS Obfuscator 사용법
 
+> 이 스크립트는 모듈/라이브러리가 아니라, `load('rhino-obfuscator.js')` 후 전역에 주입되는 `RhinoObfuscator` 객체를 바로 쓰는 방식입니다.
+
 1. Rhino(또는 Java 연동이 가능한 JS 엔진)에서 로드하기:
    ```sh
    load('rhino-obfuscator.js');
