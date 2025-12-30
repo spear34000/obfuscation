@@ -106,7 +106,10 @@ var GLOBAL = this;
       s: parts.s,
       v: parts.v,
       p: parts.p,
+      h: parts.h,
+      k: parts.k || null
       h: parts.h
+
     });
     var confused = inner.split("").reverse().join("");
     var shifted = confused.replace(/[A-Za-z]/g, function (c) {
@@ -149,6 +152,20 @@ var GLOBAL = this;
     return wrapPayload(blob);
   }
 
+
+  function generateSecret(sizeBytes) {
+    var size = sizeBytes && sizeBytes > 0 ? sizeBytes : 32;
+    return encodeBase64Url(randomBytes(size));
+  }
+
+  function obfuscateSelfContained(source) {
+    var embeddedKeyBytes = randomBytes(32);
+    var embeddedKey = encodeBase64Url(embeddedKeyBytes);
+    var blob = encrypt(source, embeddedKey);
+    blob.k = scrambleBytes(embeddedKey);
+    return wrapPayload(blob);
+  }
+
   function deobfuscate(bundle, secret) {
     var blob = unwrapPayload(bundle);
     if (!blob || !blob.h || !blob.p || !blob.s) {
@@ -160,6 +177,175 @@ var GLOBAL = this;
       throw new Error("Tampered obfuscation payload");
     }
     return plaintext;
+  }
+
+
+  function shredString(str) {
+    if (!str) return;
+    try {
+      // Strings are immutable; overwrite via a temp byte buffer to reduce residency.
+      var wipe = new ByteArray(str.length);
+      for (var i = 0; i < wipe.length; i++) {
+        wipe[i] = 0;
+      }
+      str = null;
+    } catch (e) {
+      // best-effort only
+    }
+  }
+
+  function runSelfContained(bundle, scope) {
+    var blob = unwrapPayload(bundle);
+    if (!blob.k) {
+      throw new Error("No embedded secret present");
+    }
+    var embeddedSecret = unscrambleBytes(blob.k);
+    var plaintext = decrypt(blob, embeddedSecret);
+    var recalculated = checksum(decodeBase64Url(blob.p), decodeBase64Url(blob.s));
+    if (recalculated !== blob.h) {
+      throw new Error("Tampered obfuscation payload");
+    }
+    var host = GLOBAL || this;
+    var sandbox = scope || {};
+    for (var key in sandbox) {
+      if (sandbox.hasOwnProperty(key)) {
+        host[key] = sandbox[key];
+      }
+    }
+    try {
+      (new Function("with(this){" + plaintext + "}")).call(host);
+    } finally {
+      for (var cleanupKey in sandbox) {
+        if (sandbox.hasOwnProperty(cleanupKey)) {
+          try {
+            delete host[cleanupKey];
+          } catch (e) {
+            host[cleanupKey] = undefined;
+          }
+        }
+      }
+    }
+  }
+
+  function runSelfContainedEphemeral(bundle, scope) {
+    var plaintext = null;
+    try {
+      var blob = unwrapPayload(bundle);
+      if (!blob.k) {
+        throw new Error("No embedded secret present");
+      }
+      var embeddedSecret = unscrambleBytes(blob.k);
+      plaintext = decrypt(blob, embeddedSecret);
+      var recalculated = checksum(decodeBase64Url(blob.p), decodeBase64Url(blob.s));
+      if (recalculated !== blob.h) {
+        throw new Error("Tampered obfuscation payload");
+      }
+      var host = GLOBAL || this;
+      var sandbox = scope || {};
+      for (var key in sandbox) {
+        if (sandbox.hasOwnProperty(key)) {
+          host[key] = sandbox[key];
+        }
+      }
+      try {
+        (new Function("with(this){" + plaintext + "}")).call(host);
+      } finally {
+        for (var cleanupKey in sandbox) {
+          if (sandbox.hasOwnProperty(cleanupKey)) {
+            try {
+              delete host[cleanupKey];
+            } catch (e) {
+              host[cleanupKey] = undefined;
+            }
+          }
+        }
+      }
+    } finally {
+      shredString(plaintext);
+    }
+  }
+
+  function runObfuscated(bundle, secret, scope) {
+    var code = deobfuscate(bundle, secret);
+    var host = GLOBAL || this;
+    var sandbox = scope || {};
+    for (var key in sandbox) {
+      if (sandbox.hasOwnProperty(key)) {
+        host[key] = sandbox[key];
+      }
+    }
+    try {
+      (new Function("with(this){" + code + "}")).call(host);
+    } finally {
+      for (var cleanupKey in sandbox) {
+        if (sandbox.hasOwnProperty(cleanupKey)) {
+          try {
+            delete host[cleanupKey];
+          } catch (e) {
+            host[cleanupKey] = undefined;
+          }
+        }
+      }
+    }
+  }
+
+  function runObfuscatedEphemeral(bundle, secret, scope) {
+    var code = null;
+    try {
+      code = deobfuscate(bundle, secret);
+      var host = GLOBAL || this;
+      var sandbox = scope || {};
+      for (var key in sandbox) {
+        if (sandbox.hasOwnProperty(key)) {
+          host[key] = sandbox[key];
+        }
+      }
+      try {
+        (new Function("with(this){" + code + "}")).call(host);
+      } finally {
+        for (var cleanupKey in sandbox) {
+          if (sandbox.hasOwnProperty(cleanupKey)) {
+            try {
+              delete host[cleanupKey];
+            } catch (e) {
+              host[cleanupKey] = undefined;
+            }
+          }
+        }
+      }
+    } finally {
+      shredString(code);
+    }
+  }
+
+  // convenience aliases for easier usage
+  function bundle(source, secret) {
+    return obfuscate(source, secret);
+  }
+
+  function runBundle(bundleData, secret, scope) {
+    return runObfuscated(bundleData, secret, scope);
+  }
+
+  function runBundleEphemeral(bundleData, secret, scope) {
+    return runObfuscatedEphemeral(bundleData, secret, scope);
+  }
+
+  function seal(source) {
+    return obfuscateSelfContained(source);
+  }
+
+  function runSealed(bundleData, scope) {
+    return runSelfContained(bundleData, scope);
+  }
+
+  function runSealedEphemeral(bundleData, scope) {
+    return runSelfContainedEphemeral(bundleData, scope);
+  }
+
+  function packAndRun(source, secret, scope) {
+    var b = obfuscate(source, secret);
+    return runObfuscated(b, secret, scope);
   }
 
   function scrambleBytes(text) {
@@ -229,6 +415,27 @@ var GLOBAL = this;
     return { payload: payload.join(""), stride: stride, shift: shift };
   }
 
+
+var api = {
+  obfuscate: obfuscate,
+  deobfuscate: deobfuscate,
+  runObfuscated: runObfuscated,
+  runObfuscatedEphemeral: runObfuscatedEphemeral,
+  generateSecret: generateSecret,
+  obfuscateSelfContained: obfuscateSelfContained,
+  runSelfContained: runSelfContained,
+  runSelfContainedEphemeral: runSelfContainedEphemeral,
+  bundle: bundle,
+  runBundle: runBundle,
+  runBundleEphemeral: runBundleEphemeral,
+  seal: seal,
+  runSealed: runSealed,
+  runSealedEphemeral: runSealedEphemeral,
+  packAndRun: packAndRun
+};
+
+// Expose globally (non-module usage)
+var RhinoObfuscator = api;
   function runObfuscated(bundle, secret, scope) {
     var host = GLOBAL || this;
     var code = deobfuscate(bundle, secret);
@@ -261,3 +468,4 @@ var GLOBAL = this;
 
   // Expose globally (non-module usage)
   var RhinoObfuscator = api;
+

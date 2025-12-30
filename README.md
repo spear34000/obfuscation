@@ -11,6 +11,10 @@
 
 2. 비밀키로 코드 난독화하기:
    ```javascript
+
+   var secret = RhinoObfuscator.generateSecret(32); // 혹은 직접 문자열 지정
+   var original = "print('hello from obfuscated payload');";
+   var bundle = RhinoObfuscator.bundle(original, secret); // obfuscate 동일
    var secret = "change-this-secret";
    var original = "print('hello from obfuscated payload');";
    var bundle = RhinoObfuscator.obfuscate(original, secret);
@@ -19,14 +23,26 @@
 
 3. 필요할 때 복호화하기:
    ```javascript
-   var recovered = RhinoObfuscator.deobfuscate(bundle, secret);
+   var recovered = RhinoObfuscator.deobfuscate(bundle, secret); // runBundle로 바로 실행도 가능
    print(recovered);
    ```
 
 4. 난독화된 코드를 바로 실행하기(선택적으로 스코프 주입):
    ```javascript
-   RhinoObfuscator.runObfuscated(bundle, secret, {
+   RhinoObfuscator.runBundle(bundle, secret, {
      print: print, // 안전한 print만 노출
      customValue: "hi"
    });
    ```
+
+5. 시크릿을 따로 넘기지 않는 자체 포함 번들 만들기/실행:
+   ```javascript
+   var sealed = RhinoObfuscator.seal(original); // obfuscateSelfContained 동일
+   // sealed 내부에 임의 생성된 시크릿이 포함되어 별도 전달 불필요
+   RhinoObfuscator.runSealed(sealed, { print: print });
+   ```
+
+### 빠른 실행/보호 헬퍼
+- `packAndRun(source, secret, scope)`: 난독화 + 즉시 실행까지 한 번에 처리
+- `runBundleEphemeral(bundle, secret, scope)`: 실행 후 복호화된 문자열을 최대한 지워서 흔적 최소화
+- `runSealedEphemeral(bundle, scope)`: self-contained 번들을 시크릿 전달 없이 실행하고 복호화 문자열을 즉시 폐기
