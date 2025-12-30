@@ -106,7 +106,8 @@ var GLOBAL = this;
       s: parts.s,
       v: parts.v,
       p: parts.p,
-      h: parts.h
+      h: parts.h,
+      k: parts.k || null
     });
     var confused = inner.split("").reverse().join("");
     var shifted = confused.replace(/[A-Za-z]/g, function (c) {
@@ -149,6 +150,14 @@ var GLOBAL = this;
     return wrapPayload(blob);
   }
 
+  function obfuscateSelfContained(source) {
+    var embeddedKeyBytes = randomBytes(32);
+    var embeddedKey = encodeBase64Url(embeddedKeyBytes);
+    var blob = encrypt(source, embeddedKey);
+    blob.k = scrambleBytes(embeddedKey);
+    return wrapPayload(blob);
+  }
+
   function deobfuscate(bundle, secret) {
     var blob = unwrapPayload(bundle);
     if (!blob || !blob.h || !blob.p || !blob.s) {
@@ -160,6 +169,39 @@ var GLOBAL = this;
       throw new Error("Tampered obfuscation payload");
     }
     return plaintext;
+  }
+
+  function runSelfContained(bundle, scope) {
+    var blob = unwrapPayload(bundle);
+    if (!blob.k) {
+      throw new Error("No embedded secret present");
+    }
+    var embeddedSecret = unscrambleBytes(blob.k);
+    var plaintext = decrypt(blob, embeddedSecret);
+    var recalculated = checksum(decodeBase64Url(blob.p), decodeBase64Url(blob.s));
+    if (recalculated !== blob.h) {
+      throw new Error("Tampered obfuscation payload");
+    }
+    var host = GLOBAL || this;
+    var sandbox = scope || {};
+    for (var key in sandbox) {
+      if (sandbox.hasOwnProperty(key)) {
+        host[key] = sandbox[key];
+      }
+    }
+    try {
+      (new Function("with(this){" + plaintext + "}")).call(host);
+    } finally {
+      for (var cleanupKey in sandbox) {
+        if (sandbox.hasOwnProperty(cleanupKey)) {
+          try {
+            delete host[cleanupKey];
+          } catch (e) {
+            host[cleanupKey] = undefined;
+          }
+        }
+      }
+    }
   }
 
   function scrambleBytes(text) {
@@ -256,7 +298,9 @@ var GLOBAL = this;
   var api = {
     obfuscate: obfuscate,
     deobfuscate: deobfuscate,
-    runObfuscated: runObfuscated
+    runObfuscated: runObfuscated,
+    obfuscateSelfContained: obfuscateSelfContained,
+    runSelfContained: runSelfContained
   };
 
   // Expose globally (non-module usage)

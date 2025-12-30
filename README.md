@@ -30,3 +30,10 @@
      customValue: "hi"
    });
    ```
+
+5. 시크릿을 따로 넘기지 않는 자체 포함 번들 만들기/실행:
+   ```javascript
+   var sealed = RhinoObfuscator.obfuscateSelfContained(original);
+   // sealed 내부에 임의 생성된 시크릿이 포함되어 별도 전달 불필요
+   RhinoObfuscator.runSelfContained(sealed, { print: print });
+   ```
