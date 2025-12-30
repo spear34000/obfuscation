@@ -1,15 +1,15 @@
-// Rhino-friendly obfuscation helper
-(function (global) {
-  var SecureRandom = Java.type("java.security.SecureRandom");
-  var MessageDigest = Java.type("java.security.MessageDigest");
-  var Cipher = Java.type("javax.crypto.Cipher");
-  var SecretKeyFactory = Java.type("javax.crypto.SecretKeyFactory");
-  var GCMParameterSpec = Java.type("javax.crypto.spec.GCMParameterSpec");
-  var PBEKeySpec = Java.type("javax.crypto.spec.PBEKeySpec");
-  var SecretKeySpec = Java.type("javax.crypto.spec.SecretKeySpec");
-  var Base64 = Java.type("java.util.Base64");
-  var StandardCharsets = Java.type("java.nio.charset.StandardCharsets");
-  var ByteArray = Java.type("byte[]");
+// Rhino-friendly obfuscation helper (global, not a module)
+var SecureRandom = Java.type("java.security.SecureRandom");
+var MessageDigest = Java.type("java.security.MessageDigest");
+var Cipher = Java.type("javax.crypto.Cipher");
+var SecretKeyFactory = Java.type("javax.crypto.SecretKeyFactory");
+var GCMParameterSpec = Java.type("javax.crypto.spec.GCMParameterSpec");
+var PBEKeySpec = Java.type("javax.crypto.spec.PBEKeySpec");
+var SecretKeySpec = Java.type("javax.crypto.spec.SecretKeySpec");
+var Base64 = Java.type("java.util.Base64");
+var StandardCharsets = Java.type("java.nio.charset.StandardCharsets");
+var ByteArray = Java.type("byte[]");
+var GLOBAL = this;
 
   var BYTE_SEEDS = [
     0x10A, 0x2F, 0x5C, 0xA5, 0xF1, 0x3B, 0x7C, 0x9D, 0xE2, 0x55, 0x6A, 0x8E, 0xC3, 0xD4, 0x1F, 0x2A,
@@ -230,22 +230,23 @@
   }
 
   function runObfuscated(bundle, secret, scope) {
+    var host = GLOBAL || this;
     var code = deobfuscate(bundle, secret);
     var sandbox = scope || {};
     for (var key in sandbox) {
       if (sandbox.hasOwnProperty(key)) {
-        global[key] = sandbox[key];
+        host[key] = sandbox[key];
       }
     }
     try {
-      (new Function("with(this){" + code + "}")).call(global);
+      (new Function("with(this){" + code + "}")).call(host);
     } finally {
       for (var cleanupKey in sandbox) {
         if (sandbox.hasOwnProperty(cleanupKey)) {
           try {
-            delete global[cleanupKey];
+            delete host[cleanupKey];
           } catch (e) {
-            global[cleanupKey] = undefined;
+            host[cleanupKey] = undefined;
           }
         }
       }
@@ -258,5 +259,5 @@
     runObfuscated: runObfuscated
   };
 
-  global.RhinoObfuscator = api;
-})(this);
+  // Expose globally (non-module usage)
+  var RhinoObfuscator = api;
