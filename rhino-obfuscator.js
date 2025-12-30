@@ -108,6 +108,8 @@ var GLOBAL = this;
       p: parts.p,
       h: parts.h,
       k: parts.k || null
+      h: parts.h
+
     });
     var confused = inner.split("").reverse().join("");
     var shifted = confused.replace(/[A-Za-z]/g, function (c) {
@@ -150,6 +152,7 @@ var GLOBAL = this;
     return wrapPayload(blob);
   }
 
+
   function generateSecret(sizeBytes) {
     var size = sizeBytes && sizeBytes > 0 ? sizeBytes : 32;
     return encodeBase64Url(randomBytes(size));
@@ -175,6 +178,7 @@ var GLOBAL = this;
     }
     return plaintext;
   }
+
 
   function shredString(str) {
     if (!str) return;
@@ -411,6 +415,7 @@ var GLOBAL = this;
     return { payload: payload.join(""), stride: stride, shift: shift };
   }
 
+
 var api = {
   obfuscate: obfuscate,
   deobfuscate: deobfuscate,
@@ -431,3 +436,36 @@ var api = {
 
 // Expose globally (non-module usage)
 var RhinoObfuscator = api;
+  function runObfuscated(bundle, secret, scope) {
+    var host = GLOBAL || this;
+    var code = deobfuscate(bundle, secret);
+    var sandbox = scope || {};
+    for (var key in sandbox) {
+      if (sandbox.hasOwnProperty(key)) {
+        host[key] = sandbox[key];
+      }
+    }
+    try {
+      (new Function("with(this){" + code + "}")).call(host);
+    } finally {
+      for (var cleanupKey in sandbox) {
+        if (sandbox.hasOwnProperty(cleanupKey)) {
+          try {
+            delete host[cleanupKey];
+          } catch (e) {
+            host[cleanupKey] = undefined;
+          }
+        }
+      }
+    }
+  }
+
+  var api = {
+    obfuscate: obfuscate,
+    deobfuscate: deobfuscate,
+    runObfuscated: runObfuscated
+  };
+
+  // Expose globally (non-module usage)
+  var RhinoObfuscator = api;
+

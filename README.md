@@ -11,9 +11,13 @@
 
 2. 비밀키로 코드 난독화하기:
    ```javascript
+
    var secret = RhinoObfuscator.generateSecret(32); // 혹은 직접 문자열 지정
    var original = "print('hello from obfuscated payload');";
    var bundle = RhinoObfuscator.bundle(original, secret); // obfuscate 동일
+   var secret = "change-this-secret";
+   var original = "print('hello from obfuscated payload');";
+   var bundle = RhinoObfuscator.obfuscate(original, secret);
    print(bundle); // 이 문자열을 저장하거나 배포
    ```
 
