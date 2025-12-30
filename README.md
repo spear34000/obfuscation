@@ -1,1 +1,30 @@
 # obfuscation
+
+## Rhino JS Obfuscator 사용법
+
+1. Rhino(또는 Java 연동이 가능한 JS 엔진)에서 로드하기:
+   ```sh
+   load('rhino-obfuscator.js');
+   ```
+
+2. 비밀키로 코드 난독화하기:
+   ```javascript
+   var secret = "change-this-secret";
+   var original = "print('hello from obfuscated payload');";
+   var bundle = RhinoObfuscator.obfuscate(original, secret);
+   print(bundle); // 이 문자열을 저장하거나 배포
+   ```
+
+3. 필요할 때 복호화하기:
+   ```javascript
+   var recovered = RhinoObfuscator.deobfuscate(bundle, secret);
+   print(recovered);
+   ```
+
+4. 난독화된 코드를 바로 실행하기(선택적으로 스코프 주입):
+   ```javascript
+   RhinoObfuscator.runObfuscated(bundle, secret, {
+     print: print, // 안전한 print만 노출
+     customValue: "hi"
+   });
+   ```
