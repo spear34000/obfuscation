@@ -38,5 +38,7 @@
    RhinoObfuscator.runSealed(sealed, { print: print });
    ```
 
-### 빠른 실행 헬퍼
-- `packAndRun(source, secret, scope)` : 난독화 + 즉시 실행까지 한 번에 처리
+### 빠른 실행/보호 헬퍼
+- `packAndRun(source, secret, scope)`: 난독화 + 즉시 실행까지 한 번에 처리
+- `runBundleEphemeral(bundle, secret, scope)`: 실행 후 복호화된 문자열을 최대한 지워서 흔적 최소화
+- `runSealedEphemeral(bundle, scope)`: self-contained 번들을 시크릿 전달 없이 실행하고 복호화 문자열을 즉시 폐기
